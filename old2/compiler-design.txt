@@ -1,0 +1,209 @@
+Practical Compiler Design
+This is a set of principles and suggestions drawn from my own experience
+writing compilers.  Note that I haven't had any formal training in this so
+far; I'm completely self-taught.
+
+GENERAL
+
+* Read a lot.
+This goes for programming in general.  Skim and read all the material you can
+find; it doesn't matter if you don't understand it the first time, because
+eventually you will.  Different people will explain the same things different
+ways; gaining those diverse perspectives is valuable.
+
+* Dissect other compilers and similar programs.
+This is the same as the above: it doesn't matter if you understand it
+completely, but you need to get an idea of what's going on.  Start with
+programs /built/ to be dissected.  Don't try to hack your way through the
+entire GCC source in an effort to learn how to build a compiler.  Read docs on
+various compilers and runtime environments; learn from those who have gone
+before you.
+
+* Design your language and compiler.
+Few things can screw you up more than changing your goals in mid-hack.  Write
+a basic specification for your langauge before you start, and know which bits
+are critical (memory/execution model, basic syntax) and which are less
+immediate (garbage collection, module system).  Give yourself some wiggle-room
+for redesigns; it's easy to make minor syntax-changes to your language before
+the parser is built, but very hard afterwards.  Aim for a good balance between
+simplicity and power.  Whole books have been read on language-design: read
+them.  Learn other languages.  Figure out exactly what you're trying to
+achieve with your new language: what can it do that others can't?
+
+* Specialize error messages.
+Make templates for them, and standardize them.  This will save you a lot of
+re-writing and error-checking.  It may not seem significant at first, but it
+will soon.  Writing (lexer-error "Ouch: ~A" foo) is a lot easier than writing
+(error "Lexer error at line ~A char ~A~%Ouch: ~A" *line-no* *char-no* foo),
+especially when you're doing it ten or twenty times.  Spending some time
+building an error-reporting subsystem will make life much less painful for
+everyone who ever hopes to use your compiler and language.  Trust me on this
+one; it's worth it.
+
+* Don't write it in C.
+Or C++.  In fact, avoid those languages as much as you can, at least for your
+first few compilers.  Use Lisp or Java or Ocaml or Perl whatever you want, as
+long as it has garbage collection and dynamic data-structures.  This will save
+you MUCH MUCH pain.  And if you only know C or C++, don't write a compiler,
+because you can't design a new language without having a good idea of what's
+already been done.  Learn Python, Lisp, Smalltalk and Ocaml, THEN write a
+compiler.
+
+* Don't expect it to be fast.
+This is kinda a hard issue, actually.  First off, don't try to make the
+compiler fast.  Just DON'T.  Unless something is going really slowly out of
+sheer stupidity, just don't worry about it.  Optimizing something before
+you're finished writing it is a really good way to screw yourself up beyond
+all hope and recognition.  This compiler is merely a first-draft, after all, a
+beta.  If you get a thousand people using it and they all complain about the
+slowness, THEN you can start optimizing.
+
+* Don't expect it to be fast.
+Here, I'm talking about the execution of your compiled/interpreted programs.
+Again, this really isn't something you have to worry about much.  You'll have
+plenty of time to optimize your code once your language becomes the Next Big
+Thing and you have Larry Wall bowing down at your feet.  Now, if you can make
+something obviously and simply faster, such as storing your symbol table in a
+hashtable instead of a linked list, go ahead and do it.  But don't spend any
+time agonizing over it.  You'll probably come up a lot of trade-offs between
+speed and memory, or speed and ease-of-coding.  Choose the latter for both,
+unless it'd just be stupid to do so.  Speed is still a priority in the modern
+world, no matter what Java marketers think, but getting the thing to work is a
+bigger priority.
+
+* Don't expect it to be perfect.
+Just what it says.  If you're reading this, you're a beginner.  Don't expect
+your first compiler to be perfect.  Expect your THIRD compiler to be perfect,
+after a year of revisions and releases.
+
+* Don't be scared of it.
+Compilers are just programs.  They're complicated programs, sure, but they can
+be very easily divided up into conquorable parts.  All you're doing is reading
+a bunch of data, twiddling it around a bunch, and writing it back out in a
+different form.  That's exactly the same as what happens when you write a
+calculator.  If you have a good idea of how the language should work and how
+to divide data up into managable parts and stages, then most of the time how
+to write the thing will be obvious.
+
+
+LEXERS
+* Write your own.
+Well, you don't have to really, but it's not that hard and it's a good
+learning experience.  You just have to know the principles behind them.  And
+what's more fun, learning how to use 'lex' or discovering what the magic
+behind 'lex' is?  It's a somewhat tedious process when you're doing it for the
+fifth time, which is why 'lex' exists, but the first time, the magic is worth
+it.
+
+* Principles of lexers:
+A lexer is just a system that takes a bunch of text, and outputs that text as
+a bunch of atomic symbols.  It might read "if (foo > bar) then bop;" and
+output it as IF LPAREN IDENTIFIER:foo GREATERTHAN IDENTIFIER:bar RPAREN THEN
+IDENTIFIER:bop ENDSTATEMENT, where all those things are basic symbols defined
+as structures or enums or objects or whatever.  A lexer does NOT worry at ALL
+about what order the symbols are in; that's the parser's job.  If you try to
+mix them up, you're either very very good, or in for a lot of pain.  All
+you're going to do is chop words up into abstract representations of them.
+That's ALL.
+
+* Structure of lexers:
+The structure of lexers and parsers are based on a theory/system/whatever
+called "finite automata".  Don't bother to understand the name, just recognize
+it.  All it means is that you can put in any sequence of symbols, and you get
+out another sequence of different symbols.  It's kind of like a pinball
+machine in execution: a symbol goes in one place, gets bounced around a lot by
+different functions to determine whether it's a number or a symbol or anything
+else, then the final result gets outputted.  There are books and tutorials and
+such out there that explain this far better than I can, with diagrams and
+Flash animations (avoid those; they're sleazy) and animated GIFs and all.  So
+read up on that a bit, then try writing a couple simple ones.  It'll probably
+help to think of your lexer as a graph, with each node being a function and
+each edge a function call.  Then a loop in the graph is simply a recursive
+call, and you're set to go.
+
+* Write getchar and peekchar functions.
+You want these to be simple and straightforward to call, because you're gonna
+be doing it a lot.  Just about every function in your lexer is going to make
+some sort of decision based on what the current character and/or the next
+character in the stream is is.  If you have to reference an array and
+increment an index on it every time you read a character, you're gonna be
+writing a lot of code you don't have to.  Global variables are your friends
+here, argument-passing isn't.  It also makes keeping track of line and
+character-numbers MUCH easier; scroll up to re-read my tyrannical orders
+regarding error-reporting.
+
+* Use helper functions for complex things.
+Write all the helper functions you need, by the same principle.  Anything
+you're going to be doing a lot to the same data with only a few differences.
+Even if it seems trivial the first couple times you use it, by the tenth it
+won't.  And that is why editors have search-and-replace functions, ne?
+
+* Debug.
+You're going to have to.  Get used to it.  You're gonna get a lot of weird
+recursive problems, so figure out how to trace your functions how to tell
+what's calling what and where.  The usual stuff.
+
+PARSERS
+* Again, write your own the first couple times.
+A parser is exactly like a lexer, except instead of reading sequences of
+characters and outputting symbols, you're reading a sequence of symbols and
+outputting a tree that reflects the structure of the program.  So you'd read
+IF LPAREN IDENTIFIER:foo GREATERTHAN IDENTIFIER:bar RPAREN THEN IDENTIFIER:bop
+ENDSTATEMENT and output a tree saying (IF (STATEMENT (GREATERTHAN foo bar))
+bop) or something like that.
+
+* This is where syntax-checking happens.
+A lexer only signals errors if it recognizes an impossible symbol.  A parser
+is both more complicated and more important, because it signals errors if it
+recognizes an invalid SEQUENCE of symbols.  A stricter language syntax means
+a simpler parser, because there are fewer combinations that need to be checked
+for.  A looser language syntax means it's harder to find errors, but often
+also means a more flexible language.  A comparison might be Pascal vs. Perl.
+However, this also means that it's harder to make error-messages meaningful,
+since the context is less specific.  I've found a good trick is to have the
+parser pass newline symbols through to the parser, so it can keep a count of
+line numbers as well, even if newlines are insignificant in your language.
+
+* Make clear syntax-trees.
+A syntax-tree is what the parser turns symbols into.  You should end up with
+it creating one syntax tree for the largest structure in your program
+(function/class/module/whatever), making sure that the syntax tree is
+completely valid.  If you can nest function definitions inside each other,
+then make the syntax trees reflect that.  If not, make sure such a structure
+will be signaled as an error.  As I said, the parser is where the compiler
+decides whether a program is valid or trash.  Once you do that, the backend
+will be able to slurp up syntax trees very easily, because it already knows
+that there aren't going to be any errors in the structure of the data.  It's
+actually a very refreshing change to be able to program without doing
+sanity-checks on your input; if you DO find yourself making a lot of
+sanity-checks in the backend, then the parser isn't robust enough.
+
+* Write out the syntax of the language.
+Make a formal/semiformal specification.  Write it all out in BNF or some
+half-assed approximation, as long as you can read it the same way twice.  Then
+put it someplace you can refer to it quickly, because it really IS that
+useful.  That specification will tell you what functions need to refer to each
+other, what kind of data each is going to accept, and what parts are going to
+need each other to work right.  If you have that, and it's meaningful, then
+the parser will more or less write itself.  Then you can go on to using bison
+or yacc or such for your next compiler, so the parser really WILL write
+itself.  But I feel that understanding the mechanics of it is important enough
+and cool enough to do it manually at least once.
+
+* Again, write zillions of helper functions.
+Look up at that whacked-out BNF specification.  For each item there, there
+should be a function that you can call that will attempt to read that
+syntactic structure from the input stream, package it up into some meaningful
+structure, and return it.  Are there 30 or 40 different nodes there?  Write 30
+or 40 different functions, plus all the helpers required for them.  If you try
+to take shortcuts, you're only going to end up cutting your own throat.  Or at
+the very least, writing much more code, and unnecessarily.  Everything fits
+together with everything else; that's the beauty of it, and the danger, and
+what allows it to be written automatically by some parser-generator next time
+so you don't have to bother with all this dreck.
+
+* Start thinking about the backend.
+Sure, you're not writing it yet, but you should have some idea of how it's
+going to work.  Just be thinking about it now and then, and figuring out how
+you're actually going to make the computer do all this song-and-dance you're
+asking it to do.

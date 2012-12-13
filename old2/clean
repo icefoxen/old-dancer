@@ -1,0 +1,6 @@
+#!/bin/sh
+rm -rf *.o
+rm -rf *~
+rm -rf include/*~
+rm -rf dancerlex.out
+rm -rf a.out

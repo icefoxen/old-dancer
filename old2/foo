@@ -1,0 +1,46 @@
+{{ {{ }} }}
+
+10 'foo
+'bar
+
+0x20
+
+###f
+
+foo::bar
+
+method+ FooObject sort (lst)   ; Class methods, y'see.
+   "Docstring#nl#c#r#tsbqr#spfoo"
+   insert (car lst) (sort (cdr lst)).
+
+method+ FooObject insert (elt, lst)
+   "Docstring"
+   if (empty? lst) 
+      [ [| elt |] ]
+      [if (>= elt (car lst))
+          [cons lst elt]
+          [cons (car lst)
+              (insert elt (cdr lst))]].
+
+class Point (Object)
+   "A point"
+   var x (x) := 1,
+   var y (y) := 1.  ; The (val) are accessor names
+
+method move Point (newX:=0, newY:=0)  ; Default values!
+   "Move the thang...  Methods are defined seperate from classes, baby!"
+   if (and (>= x 0) (>= y 0))
+      [x := newX,     ; := ish NOT a method call.
+       y := newY].    ; These are a single block, remember.
+
+method above? Point (otherPoint)
+   > y (y otherPoint).
+
+12345
+
+method below? Point (otherPoint)
+   and (above? self otherPoint) 
+       (not (eq? self otherPoint)).
+
+19
+'bop

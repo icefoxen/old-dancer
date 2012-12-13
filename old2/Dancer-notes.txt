@@ -1,0 +1,958 @@
+*What do I want this compiler to DO?
+I want it to dynamically link
+I want it to manipulate functions as values
+I want it to GC
+I want it to compile
+I want it to execute fairly fast
+I want it to have easy access to standardized system info
+I want it to have a nice module system --Java, Python, Haskell
+
+*What do I want this language to DO?
+I want it to have delayed evaluation --blocks, special forms, etc
+I want it to be dynamically typed --values have type, not vars
+I want it to do low-level stuff
+I want it to be OO, to a degree --how much?  Utterly?
+I want it to have a simple syntax (unlike Ocaml, Perl, Ruby)
+I want it to have keyword, preset, and variable-number args
+I want it to have a good exception system
+I want it to be flexible in concept (unlike Lisp (well, Scheme), Haskell, Smalltalk)
+I want it to have docstrings
+I want it to be able to have anonymous funcs --see delayed evaluation!
+I want it to have in-built support for complex data structs (lists)
+I want it to be fairly simple in concept (unlike C++, Haskell, Lisp)
+I want it to have symbolic manipulation
+I want it to have good exception handling
+
+*What problems to I want to SOLVE this language?  Problem domain.
+Info-crunching, text-processing, simulation
+Graphics
+C FFI
+Systems
+Toolsmithing, practical applications, games
+General-purpose
+
+I want a reasonably quick, compiled language suitable for large-scale application development.
+
+*Other problems worthy of consideration:
+Multithreading
+Glue, both low and high level
+Networks
+
+Complex syntax makes things easier!
+Lisp's simplicity in syntax is dealt with by it's complexity of implementations!
+Scheme's by it's bareness!
+
+
+-----
+
+Late binding!!!  Say a data structure class has an "each" method, that takes a block and performs it on each value in the struct.  You can have a whole bunch of methods, like a mixin or protocol or something, defined in terms of that "each".  Then, you can use that bunch of methods on ANY class that defines an "each" method with the same behavior, because it doesn't have to check whether "each" actually exists at RUNTIME!  THAT is the stuff, baby!
+Erf though...  That isn't really late binding.  This isn't interprated; you're
+not going to be fooling around with such things much at runtime...  Hrm.  Such
+a situation as above could be equally easily done with compile-time binding of
+names to values/messages.  So if a class defines an "each" method that takes a
+block, any class, it can be inserted into the abovementioned data-structure's
+place, recompiled, and so it works.  Hrm...
+Well, keep reading.
+
+
+Kay.  Overall idea is OO.  Czech out Dylan.  Almost everything is a method
+call.  A message-pass goes "message object args", ()'s can be used to declare
+prescedence, and commas can be used to seperate message-calls. "[(local vars)
+body]" can be used for delayed evaluation.  Instance methods are defined with
+"method", class methods by "method+" (XXX: icky?).  All data is private,
+accessors can be built automatically by the syntax "var <name> (<getter>,
+<setter>) = <expression>", though it can be abbreviated (getter) and
+(,setter).  All data CAN be accessed by subclasses, though.  Equivilant to
+Java's "protected" keyword.  For now, messages are STATIC, they are merely
+literal symbols that can NOT be changed at runtime.  For instance:
+---
+x := if [> a b] ['method1] ['method2],
+x foo
+---
+will simply result in the call "x foo" being performed, NOT "method1 foo" or
+"method2 foo".  This WILL change in a later revision; check out the "LATER"
+section.
+
+Lists are a basic language feature, of the form [|item1 item2 ...|].  Some syntactic sugar for ranges and slices would be nice, a la Py/Ruby.
+Any value that is not nil or False, is True.  nil does NOT equal to an empty list.  There is only ONE object that is True, and only ONE that is False.  Language features for this?  Yeah, they're called CONSTANTS, mook.
+
+Generic functions, instead of messages?  What's the diff???  I mean, message def's are already seperate from class def's, so...
+Generic functions have built-in typing, but Dancer is dynamically-typed, soo...  It's a bit of a non-sequiter.
+
+***Example: Insertion Sort***
+method+ sort FooObject (lst)   ; Class methods, y'see.
+   "Docstring"
+   insert self (car lst) (sort (cdr lst)).
+
+method+ insert FooObject (elt, lst)
+   "Docstring"
+   if (empty? lst)
+      [ [|elt|] ]
+      [if (>= elt (car lst))
+          [cons lst elt]
+          [cons (car lst)
+              (insert self elt (cdr lst))]].
+
+***Example: Point class***
+class Point (Object)
+   "A point"
+   var x (x-,x=) = 0,  ; The - and = are conventions for getter/setter methods
+   var y (y-,y=) = 0.  ; The (val) are accessor names
+
+method move Point (newX=0, newY=0)  ; Default values!
+   "Move the thang...  Methods are defined seperate from classes, baby!"
+   if (and (>= x 0) (>= y 0))
+      [x := newX,     ; := ish NOT a method call.
+       y := newY].    ; These are a single block, remember.
+
+; The args also act as keywords, so you could do:
+; move Point newY=10 newX=20
+; If a default value is not assigned, then you can still use the args as keywords,
+; but the args MUST be provided.  They do NOT NOT NOT default to NIL!!!
+; I emphasize that because local and instance variables default to nil, as do
+; globals.  But if parameters defaulted to nil, then, well, things would just
+; get ugly as you would always have to check if there was a valid value in
+; them.
+
+method above? Point (otherPoint)
+   > y (y- otherPoint).
+
+; "equal?" and "eq?" methods are defined automatically for ALL classes!
+; The first compares the pointers, the second compares the physical
+; data.
+
+method below? Point (otherPoint)
+   and (above? self otherPoint) 
+       (not (eq? self otherPoint)).
+***
+Heh... by now, it's some unholy mix of Ruby, Smalltalk, Python and Lisp.
+
+Assignment is like Smalltalk: use := infix, it is NOT a method.
+
+Okay.  A package defines a collection of classes, methods, variables and constants.  Packages are just used to determine name-space; they're not first-class values.
+Packages are allowed to be mutually recursive, but will not be imported more than once by the compiler.  In other words, it won't get caught in a mutually-recursive loop.
+The package space is flat, not heirarchical.  More than one file can be in a package.  XXX: ...Waitasec, how???
+A package is imported with the "import" directive, and accessed by the form
+"Packagename::value".  It goes for classes, constants and global variables.
+Message names don't need that form though, because of late binding --message
+names just tell the runtime what method to look for, they're not definitions.   XXX: is this accurate???
+You can also use the "use" directive, which means you don't need to prepend
+the "Packagename::" to the class name --all the values and classes are
+imported into the local namespace.You declare a package with the "package" directive.  It must come before anything else in the file (code, other directives, etc).  
+This is all written in the context of static linking, but dynamic linking should do exactly the same thing.  You should also be able to make .a-like package archives, also for either static or dynamic linking.
+Heirarchical packages are something to think about, but they are also much more complex.  You'd probably have to make 'em first-class objects... Well, no... but still.  'Tis wonky.
+There are also two access-control mechanisms: export-lists and hide-lists.  An export list uses the "export" directive, and gives a list of values to be exposed to other packages; all else are hidden.  A hide-list uses the "hide" directive and does the exact opposite: gives a list of values to be /hidden/ from other packages, all else are exposed.  If you have the same value on an export list and hide list, you get a compiler error.  If you don't have an export or hide list, all values are public.
+A "flatten" utility would be helpful, that takes a package name and lists all the values in it from all the files.
+
+
+Mixins CAN define code.  They're just like classes, except they define NO data, can't subclass to other mixins, and can use the "defer" keyword.  Here's an example:
+---
+mixin Comparable.
+
+method > Comparable (x)
+   "Define this to use the Comparable mixin!!"
+   defer.
+
+method < Comparable (x)
+   not (and (= self x) (> self x)).
+
+; = is defined automatically; it's data comparison.  == is 
+; physical comparison.
+
+method /= Comparable (x)
+   not (= self x).
+
+method >= Comparable (x)
+   or (= self x) (> self x).
+
+method <= Comparable (x)
+   or (= self x) (< self x).
+
+method <=> Comparable (x)
+   "Returns -1 if x is less than the current object, +1 if it's greater, 0 if it's equal.  Throws an exception if it's an invalid comparison."
+   cond
+      [< self x] [-1]
+      [> self x] [1]
+      [= self x] [0]
+      [True (throw (new Exception ...))].
+
+; So if we wanted to compare points, we could just define Point as:
+
+class Point (Object Comparable)
+  ... .
+
+method > Point (p)
+   and (> x (x p)) 
+       (> y (y p)).
+
+; Tada~~~!  You can now use all 5 methods in the "Comparable" mixin!
+; ^_^
+---
+Mixins also automatically define a checker-method; for instance, Comparable would define "Comparable?".
+
+
+Even if you're using a local method, you need to use "self".
+
+If, in the arg list, you do "(arg=[||])", then it takes an UNLIMITED number of arguments and presents them as a list.
+
+Exceptions are done using blocks.  A la:
+---
+try [to do that might cause exception]
+   'ExceptionName [to execute]
+   'ExceptionName [to execute]
+   ...
+   'finalize [to execute no matter what, eg closing files]
+---
+
+
+
+UNICODE??  I'd better, somehow...  Relatively low-priority though.  Characters
+can be transformed from ASCII to UTF-16 or something preeeetty transparently.
+
+You can do literal values by prefixing 'em with a quote ('), a la Lisp.  So 'foo will be the symbol "foo".
+
+You can use commas as statement seperators.  You CAN'T just have statements seperated by newlines, 'cause it's too bloody ambiguous, especially where blocks and variable-args are involved.  So you can write
+---
+x := 10,
+y := 20
+---
+or
+---
+x := 10, y := 20
+---
+You CAN'T do:
+---
+x := 10
+y := 20
+---
+or more specifically,
+---
+format "foo bar bop" foo bar bop
+beep := 10
+---
+Actually...  Which is uglier?  Having a , after EVERY statement, or using \'s or ()'s or ||'s to continue statements over lines?  Hmm...  I'll have to write some stuff and decide.
+But basically the issue is variable/indefinate args being split over multiple lines...  Yeah, there you really need seperators.  Commas, then, are required.
+But then control structures being method-calls ish rather ugly... nested if's, for instance.  Ah well, I'll live.
+
+
+It's GC'ed and case-sensitive.
+
+OS and architecture info ish included.
+
+Reflective tools --trace, disassemble, dir, apropos, docstrings, decompose objects and funcs.
+
+There's two types of comments:
+; Line comments
+{{ And block comments }}
+
+Local data is declared at the beginning of each class and method.  There are NO class variables.  Class data is defined:
+---
+class Foo (Object)
+   var a, var b, var c,
+   var d = 10,
+   var e = 30,
+   var f = if (= global 10) 
+              [new Bar]
+              [new Bop].
+---
+a, b, and c are initialized to "nil".  d and e are initialized to constant data.  f is initialized with a process.  In reality, all data is initialized to nil and all modifications are just added to the "init" method.
+The "init" method is called as each object ish created, and can have any number of args.
+Method data is defined the same way:
+---
+method swap Object (a, b)
+   var c,
+   c := a,
+   b := a,
+   b := c.
+---
+
+Have a built-in swap operation (:=:)
+
+Have a C FFI library...
+
+The variable section of a block can be replaced with an _, which means it ignores all values passed to it.  It can also use _ to ignore a single variable, for instance (x, _, y).  Yay!
+
+All uninitialized variables default to nil!
+
+Cond's go:
+---
+cond 
+   [test] [ifTrue]
+   [test] [ifTrue]
+   ...
+   [TRUE] [default action]
+---
+Case's go:
+---
+case x
+   match1 [ifEqual]
+   match2 [ifEqual]
+   match3 [ifEqual]
+   match4 [ifEqual]
+   ...
+   _      [default action]
+---
+case== is exactly the same, but compares addresses rather than objects.
+
+
+What if exceptions carried a reference to the function where they were thrown, perhaps with appropriate state attached?  Then the catcher could modify some stuff and return to the original function, if necessary, or at least re-invoke it from scratch...  It might be interesting!
+
+Compiler pragmas?  To check number of args and such... may be interesting/worthwhile...
+So for case, above, you could do:
+---
+pragma case Object
+if (/= (mod (len args) 2) 0)
+   [error "Invalid number of args passed to 'case!'"].
+---
+...That would require executing code as it was compiled though, which is obviously quite silly.
+
+
+Okay, idioms and conventions.
+class name		= Capitalized
+mixin name		= Capitalized
+package name		= Capitalized
+
+local var		= nothing-special
+instance var		= nothing-special
+global var		= *starred*
+constant		= ALL-CAPS
+
+regular method		= nothing-special
+predicate method	= questioned?
+destructive method	= banged!
+getter methods		= dashed-
+setter methods		= equaled=
+
+
+ISSUES:
+The "format" syntax is generally Lispy.  I want indents, columns, iteration over sequences and/or collections, radixes, line continuations, fill-chars and fill-sequences, specifiers for number-precision, justification, specifying operations or specifiers as an arg (a la ~V), conditional selection and/or iteration?????, filling/indenting seperate from single directives,
+Use tildes.  They're friendly.
+Do NOT use too much composition and featurism!
+
+DancerDoc
+Assertions?  Nah...
+
+Make some evil dark-magic hacker features.  Things to grab direct pointers, things to grab or serialize raw values, pointer arithmatic, manual alloc and free, bit-counting, etc.  Abstraction-killers.  Asm-built tools.  Goto's.  Put them all in a package called IKWID (I Know What I'm Doing).
+
+Okay.  When an object is instantiated, a method called init is called with
+whatever arguments.  The args are default nothing, but can be overridden.
+This is a special method that initializes variables and such, and any user
+definitions are just tacked onto the end of what's already there built by the
+compiler.
+There is a matching method called fin, that's called when an object is freed
+by the GC.  This makes timing somewhat unreliable, but it can be called
+explicitly also.  Both are only called once, ie calling "init self" won't do
+anything to an object, and if you call "fin self", it won't get called again
+by the GC.  This prevents nasty things happening, such as trying to close an
+already-closed file.  But also note that if you try to do something to an
+object that has had "fin" called on it, it'll cause a fatal error.  Not fun.
+
+
+
+
+LATER:
+Special syntax for subseq/slice?  Eh, leave it for now.  But actually...
+It COULD be fairly easy, if we approach it in a slightly ruby-ish fashion.  Do
+a few tricks in the parser...  So, the "Sequence" class has a method >> for
+doing subsequences.  When the parser sees "a>>b obj" it rearranges it into 
+">> obj a b".  ">>" returns whatever object type it's used on, or a Sequence
+at worst.  So:
+---
+a := [| #a #e #i #o #u #y |]
+2>>4 a		=> [| #i #o #u |]
+>> a		=> [| #a #e #i #o #u #y |]
+3>> a		=> [| #o #u #y |]
+>>3 a		=> [| #a #e #i |]
+---
+Grar...  Can we do just:
+---
+3 a		=> #o
+---
+???  The lexer and parser makes things unpleasant for this.  It'd be rather
+nice though...  "nth" and "first second ..." will have to make up for it
+though.
+
+
+
+Perhaps we can also assign categories to classes and objects?
+Categories are arbitrary strings used for finding, indexing and documenting classes, methods and mixins.  Their main purpose would be for some Smalltalk-ish class browser.  They would work like:
+---
+class/method/mixin Foo (...) 
+   !Category goes here!
+   "Docstring"
+   code.
+---
+Perhaps a subset of docstrings?  Hmm...
+Nah, forget it.  Packages and classes are enough, methinks.
+
+You MIGHT be able to assign type-declerations to speed things up, but methods can NOT be overloaded like CLOS or Dylan.  No generic functions here; it's just too bloody irritating.  The only type that matters is the class.
+
+Messages are just literal symbols; they can be
+returned by methods.  Though due to some syntactic sugar that I consider
+rather necessary, that really doesn't work out well...
+This is the thing.  The idea is that we can do:
+---
+x := if [> a b] ['method1] ['method2]
+x foo
+---
+and have object "foo" get either "method1" or "method2".  But due to some
+stuff I don't wanna have to explain right now, that doesn't work.  It either
+treats "x" as an expression or a symbol literal.  If it treats it as an
+expression, EVERY SINGLE message pass MUST be quoted to tell it to be a symbol
+literal.  But if it treats it like a symbol literal, there's no way to insert
+variable data such as a var or expression into it and have that provide the
+message name.  Message names would have to be constant.
+Hrm...  Weeel...  One possible out for this would be to have a
+"forced-evaluation" symbol, say, $ or ^ or something.  That would tell the
+parser to recognize the following wossname as an expression rather than a
+symbol literal.  For instance:
+---
+x := if [> a b] ['method1] ['method2]
+$x foo
+---
+But that would require a fair chunk of re-thinking and even more re-writing...
+Well, but it also puts a bit more (and more explicit) certainty into the
+static vs. dynamic binding thing, which is definately a Good Thing...
+This may have to go in the next version though.  Yeah.
+
+
+
+
+DIRECTIVES:
+method
+method+
+class
+mixin
+use
+import
+export
+hide
+global
+constant
+trace (traces a method and/or var for debugging, can also take a filename to output to)
+
+SPECIAL:
+;
+{{}}
+[||]
+()
+[]
+.
+""
+#
+::
+:=
+:=:
+,
+_
+
+List syntax:
+[| 1 2 3 4 5 6 7 |]
+
+CLASSES AND METHODS (* denotes a class, followed by it's methods, ** a mixin):
+*Object
+name
+hash
+toString
+print
+understands?
+methods
+coerce (turns to a new type)
+force  (force-reveals instance variables)
+new
+init
+clone
+describe
+=   (structurally equal)
+==  (physically equal)
+/=  (not structurally equal)
+/== (not physically equal)
+marshal  (render to binary form writable to a file)
+nil?
+case
+case==
+
+*Number (Comparable)
++
+-
+/
+//  (Integer division)
+*
+sin
+cos
+tan
+asin
+acos
+atan
+square
+pow
+sqrt
++1
+-1
+gcd
+lcm
+zero?
+pos?
+neg?
+abs
+Infinity
+NaN
+inc (inc x = x++, inc x 12 = x += 12)
+dec
+mul
+div
+log
+logn
+ln
+
+
+ *Integer
+ times
+ from
+ downfrom
+ shiftl
+ shiftr
+ bOr
+ bAnd
+ bNot
+ bXor
+ mod
+ rem
+ odd?
+ even?
+ prime?
+
+ *Float
+ floor
+ ceil
+ round
+ e (Constant)
+ pi (Constant)
+ getPi (Computes pi to the x'th digit)
+ exp (raises e to x)
+ log
+ ln
+ truncate
+
+ *Ratio
+ floor
+ ceil
+ round
+ numerator
+ denominator
+
+ *Complex
+ i
+ j
+
+*Collection  (ish it a class or mixin??  Use ! and @ instead as store and get?)
+add
+remove
+remove!
+removeIf
+removeIf! (Yay lisp!)
+contains?
+merge
+each
+replace
+replace!
+replaceIf
+replaceIf!
+unique (removes duplicates, can take a predicate)
+unique?
+unique!
+find
+findIf
+count
+countIf
+size
+addAll
+removeAll
+
+ *Sequence (Comparable)
+ sorted?
+ sort
+ sort!
+ append
+ append!
+ prepend
+ prepend!
+ concat
+ concat!
+ next
+ rest
+ first
+ last
+ subSeq
+ slice
+ len
+ rev
+ len!
+ rev!
+ nth
+ first second ... tenth
+ findSeq
+ map
+ map!
+ split
+ match
+ elt
+ 
+  *List
+  cons
+  car
+  cdr
+  caar (and so on, up to cddddr)
+  foldl
+  foldr
+  list
+  zip
+  ncdr (performs cdr n times)
+  nthlast (returns the nth-to-last element)
+  make-list
+  range
+
+   *CircleList
+
+  *Array
+  fill
+  dimensions
+  resize
+
+  *Stack
+  push
+  pop
+  peek
+  swap
+  over
+  drop
+  rot
+
+  *String
+  capitalize
+  capitalize!
+  format
+  upCase
+  upCase!
+  downCase
+  downCase!
+  strip
+  strip!
+  print
+  trim
+  trimRight
+  trimLeft
+  >i (Case-insensitive comparison)
+  <i
+  =i
+  >=i
+  <=i
+  <=>i
+  maxi
+  mini
+  * (Pythonish: returns a new string with bunches of the old one, ie "foo" * 3)
+
+  *Queue
+  enq
+  deq
+
+ *Dictionary
+ ref
+
+ *Bag
+
+ *Set
+ member?
+ union
+ intersect
+ exclude
+ difference
+ subset?
+
+ *Tree
+ subst
+
+  *BinaryTree
+  insert
+
+  *BTree
+
+*Boolean
+while
+until
+not
+and
+or
+xor
+implies
+if
+unless
+yn?   (like Lisp's y-or-n-p)
+yesno?
+
+*Regexp
+match
+find
+
+*System
+args
+argNum
+StdIn
+StdOut
+StdErr
+QueryOut  (Used when asking things like "do you want to delete your files?", even in batch)
+
+*Os
+dcrImplementation
+dcrVersion
+sysArch
+os
+osVersion
+wordSize
+newlineChar
+endianness
+
+*Time
+sleep
+
+*Random
+seed
+getInt
+getBool
+getFloat
+
+*Stream (Stream)
+
+ *CharStream (CharStream)
+
+ *BcStream    (Bc = Broadcast)
+
+ *ConcatStream
+
+ *BlockStream (BlockStream)
+
+  *BlockCharStream (CharStream)
+
+  *BlockBcStream
+
+  *BlockConcatStream
+
+
+*File
+openR
+openW
+close
+withFileR
+withFileW
+exists?
+create
+path
+
+
+*Math
+
+*Char (Comparable)
+upCase
+upCase!
+downCase
+downCase!
+swapCase
+swapCase!
+charCode
+digit?
+whitespace?
+alpha?
+alphanum?
+punctuation?
+upper?
+lower?
+>i (Case-insensitive comparison)
+<i
+=i
+>=i
+<=i
+<=>i
+maxi
+mini
+exists
+find
+
+*Block
+exec
+cond
+do (Lisp-y iteration construct)
+try (exception handling)
+
+*Pair
+fst
+scd
+
+*Exception
+throw
+
+*Iterator (Iterable)
+ *ListIterator
+ prev
+ prev?
+ nextIndex
+ prevIndex
+ set
+ setIndex
+ add
+
+
+**Comparable
+>
+<
+>=
+<=
+/=
+<=>
+compareWith?
+max
+min
+
+**Stream
+read
+write
+readable?
+writable?
+readOne
+writeOne
+readObject
+writeObject
+open
+open?
+close
+closed?
+seek
+eof?
+length
+place
+toArray
+fromArray
+withOpenStream
+transform
+filter
+source
+sink
+peek
+slurp
+spew
+
+**CharStream
+readLine
+readLines
+xreadLine
+xreadLines
+
+**BlockStream
+readNext
+readPlace
+writeNext
+writePlace
+blockSize
+blockResize
+readAll
+
+**Iterable
+next?
+next
+peek
+remove
+toSequence
+
+
+
+RUNTIME:
+What IS the runtime memory model?  
+
+Like, in C it's the stack (which holds values passed to functions), a register (which holds values returned from functions), and data segment.  The data segment is divided into program-data, which is fixed-size stuff like arrays, pointers, and atomic values, and the heap, which is dynamic values of arbitrary types.
+
+In Forth, the runtime is the main stack, which holds the arguments for functions and the return values of them.  There's the function stack, which holds the function definitions (threaded language!) and temporary data.  There's the return stack, which holds mainly local variables.  There's the FP-stack, which holds math operations.  And finally there's the heap, which holds everything else.
+
+There's gotta be a symbol-table like Lisp, but that's fairly simple I think.  
+
+There has to be GC and implicit allocation.
+
+Is it a stack machine, internally?  That would work well, especially with variable number arguments.  Yesh, then argument-number checking would be a syntactic task, and keywords would compile to simply re-shuffling the args.
+
+The alternative is dynamically allocating a chunk of space for the argument-passing table, or using the CPU stack.  The former is probably better.  
+
+So, use a stack to hold the data passed between funcs.  Use another stack or an array to hold local variables --or perhaps a stack of arrays for the current state, with the global state being the bottom item created from the program's data segment, and constants also being a data segment.  That's nice.
+
+So, to execute a function, it finds the args, pushes 'em, executes the compiled code on it (which will be a series of calls to the *runtime* code, which manipulates the stack, symbol table, loader, and other such fun things --compile to C?  Good start...)
+
+Most actual "values" are pointers to the symbol table or (possibly) number table.  The symbol table holds all the type data and such.
+
+The details of the dynamic typing should be worked out.  Well, that's simple; just the symbol table.  Each method has certain necessary types; it'll throw an exception if you try to call + on a Collection, for instance.
+
+
+**REALDEAL**
+Look at Scheme, Lisp, ObjC
+
+Scope stack
+\-> Value table  -> Heap
+
+Constant table -> Heap
+
+Number table -> Heap
+
+Arg stack
+Return register/pointer
+
+
+Symbol table fields must have:
+index
+pointer
+
+
+
+Classes must have:
+name
+superclass
+instance method list
+class method list
+mixin list
+instance var list
+
+
+
+Why not just determine 'em at compile-time?  Because methods can be added without re-compiling the whole class, so they MUST BE LOADED at RUNTIME...
+Weel...  Methods are just functions that take the first class (or subclasses) as their args...
+
+
+To execute a method:
+if class x understands message y:  ; With or without a direct-jump
+   call method y of class x
+   return name of x
+else:
+   z := (send message y to superclass of x)
+   if self = original class called:
+      index z for a direct-jump next method call
+   else:
+      return z
+
+
+To actually call a method:
+push stack frame of local variables
+execute code
+pop stack frame
+
+We could not-bother with the stack frame, but that would overload the GC unnecessarily.
+
+
+So a class is basically a record.  Variable calls are handled by the SAME mechanism as method calls!!  Slower, but WAY simpler.  So instantiating a class means also instantiating alllll the superclasses.  Okay, that works, 'cause we might have to call a method on super as well.
+
+A mixin is just a collection of methods...  Y'see, THAT is what we need dynamic binding for!  So a mixin can use methods that haven't been defined yet...  Heck, we could just compile those by textual inclusion...
+
+
+So loading a class?  It creates a class record, fills in all the fields of the class, instantiates all the superclasses, then calls the "init" method.
+
+
+So... each method is a structure with a name (symbol), an arg-list (including variable and default args), a local-variable list, and the actual code (function pointer?).
+An instance variable is just a name/pointer pair, with the pointer aiming back at the data tables.
+
+
+To resolve a variable:
+Follow superclass-path

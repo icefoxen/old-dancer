@@ -1,0 +1,83 @@
+Linking semantics!!!  How do classes and methods interact, dammit?
+My mind is bent...
+
+
+eax = return and general calculation register
+ebx = stack remembering register
+ecx = instance pointer
+
+---
+method foo Obj (a, b)
+	var x,
+	x := new Bar,
+	bar x 10 a b.
+    
+;; would translate to:
+
+
+global Bar
+
+segment data:
+;; *whimpers*
+new db "new",0
+bar db "bar",0
+
+segment text:
+foo:
+
+	mov ebp, esp
+
+	;; pointer size is 4 bytes, of course; this is x86 asm after
+        ;; all
+
+	;; The instance pointer (self) is at ecx, a is at [ebp+4], b is 
+	;; at [ebp], x is at [ebp-4]
+	;; Args are measured [ebp+x], local vars are measured [ebp-x]
+	;; All data is refered to by ebp, because evil things may
+	;; happen if you try to push esp.
+
+	;; var x
+	sub esp, 4
+	mov [esp], NIL
+
+	;; x := new Bar
+	; no args to push
+
+	;; Okay, what we need to do is get a reference to the
+	;; object def and find out if the method exists.
+	;; If not, we go to the superclass, and so on...
+	;; Ick...  We need some C code to do this... a linked list
+	;; hooked to each object definition?  Yeah...  Then we
+	;; can just add nodes...  But it has to be built
+	;; dynamically...??
+	;; Ick!  That'd be heinous...  I think it can be done at
+	;; compile-time.  A bit wonky, but yeah.
+	;; So...  We just hand it a name and object and it 
+	;; returns the appropriate function pointer...  Yesh, afraid
+	;; so...
+	;; GRAR!  How the hell does Objective C do it again??
+
+	push new
+	push Bar		; global, remember?
+	call find_dammit
+	sub esp, 8
+
+	push Bar
+	call eax
+	sub esp, 4
+	
+	mov [ebp-4], eax
+
+
+	;; bar x 10 a b
+
+	push bar
+	push [ebp-4]		; x
+	call find_dammit
+	sub esp, 8		; method args
+	push 10
+	push [ebp]		; a
+	push [ebp-4]		; b
+	call eax
+
+	;; done!

@@ -1,0 +1,200 @@
+Hrm...  MixedCaps are sorta annoying at times...  Just use Lispy
+vars-with-dashes instead?  Perhaps...  Easier to type, possibly.  That'd also
+let ye use Lispy *stars* for globals and such...  What variations would we
+need?
+
+			Easier to recognize	Easier to read/write
+global vars		UPPERCASE	->	*stars*
+class/local vars	mixedCase	->	lower-case
+class/package names	MixedCaps	->	Upper-case?
+method names		mixedCase	->	lower-case
+
+DATA:
+
+Okay.  There's the stack, which holds local variables.  There's the heap,
+which holds class instances.  There's the code segment, which holds methods.
+There's the data segment, which holds constants and global vars, and class
+definitions.  We must remember to differentiate between class INSTANCES and
+class DEFINITIONS!!!
+
+A class DEFINITION is a record with the following fields:
+Name
+superclass
+docstring
+mixin list
+number of vars
+a list of instance/class method names and pointers
+
+A class INSTANCE is a record with the following fields:
+Pointer to class definition
+"self" pointer(?)
+instance variables
+
+
+A method definition is a record with the following fields:
+docstring
+number of args
+local variables
+code
+
+NOTE: Notice that the method does NOT know it's name, or what class it belongs
+to.  The class definition is what holds that data.  This is a MESSAGE
+metaphor; we grab the class instance, then TELL IT to do something.
+
+NOTE: An improper number of arguments for a method is a COMPILE-TIME error.
+
+When a METHOD IS CALLED ON A CLASS, this is what happens:
+1) The class definition is grabbed, from the class instance's reference.
+2) It is checked if the method is understood by the class.
+     If it is, continue.
+     If it isn't, check the superclasses, recursively.
+     If there is no superclass (the superclass is Nil), throw an exception.
+3) All the arguments are pushed onto the stack.  They have been re-ordered to
+conform with defaults and keywords by the compiler.  Any functions that return
+necessary values are also called, and their return values put on the stack.
+4) All the class's instance vars are pushed onto the stack.  Globals and
+constants are avaliable in the data segment.
+NOTE: This could be handled differently and maybe more efficiently, if the
+method or compiler sees that the method only pushes instance variables that
+are explicitly used by the method.
+5) The method's local variables are pushed onto the stack.
+6) The method's code is executed.
+7) All local variables, instance variables, and arguments are popped off the
+stack.
+8) The return value is stored in a variable/register to be manipulated later.
+
+XXX: What about superclass instance variables???
+
+NOTE:
+Class methods are exactly the same thing, except no instance variables are
+pushed.  That's all.
+
+THOUGHT: Maybe return values return directly to the stack, a la Forth?  But
+then if you assign 'em to a variable it's extra work, and knowing when to get
+rid of 'em would be tricky.  So nah, leave it C-style.
+
+
+INHERITANCE:
+This is purely compile-time.  If a class inherits from another class, then its
+definition holds a reference to the definition of it's superclass.  That's
+all.
+
+MIXINS:
+
+A mixin definition is a record with the form thus:
+Name
+docstring
+
+Mixins are also mostly compile-time constructs.  When a mixin is compiled into
+a class, all the methods given are compiled and included in the class
+definition.  If a mixin method is listed as deferred (with the "defer"
+keyword, naturally enough), then a compiler error is issued unless it is
+implemented along with the rest of the class.  
+
+GARBAGE COLLECTION:
+
+Start off with a mark-and-sweep system, 'cause it's simple and rugged.
+Performance isn't a core issue in the first system, at least not with
+something that can be ripped out and replaced so easily.  Performace rather IS
+an issue for overall design, though.
+
+So the memory-allocation function will just add each chunk allocated to a list
+of chunks, and once in a while (every 1000 allocations and on bad malloc's, or
+something) it'll sweep over the stack and data segment following pointers.
+Any pointer that is in the chunk-list but not the stack or data segment gets
+freed.
+
+
+PACKAGES:
+
+A package is a directory in a standard location that is full of Dancer source
+or object files.  I am, however, not quite sure what form the object files
+will take.  Either I try to shoehorn the definitions and such into
+conventional C-ish object format, or I write my own linker...
+
+Well, doing a C-ish object file shouldn't be too hard.  Just store the class,
+mixin and method definitions, as well as globals and constants.  Perhaps also
+add import-tables?
+
+The compiler/linker AUTOMATICALLY checks the modification dates of source
+files against those of object files, and re-compiles if necessary.  It also
+knows all about which packages must be imported (dependancies), and will
+automagically link everything the way it should be.  It can do this, since
+each object file bears the name of the class or mixin it defines.  Re-naming
+them will thus have horrible, horrible consequences.
+
+You can NOT declare methods in a seperate file from the class they belong to!
+It would make modularity and seperate compilation neat, but it would also
+make dependancies hell and encourage bloating existing classes rather than
+subclassing new ones.
+
+You can have two seperate classes in a single file, but they're compiled
+seperately into two object files.  I'm not sure how globals and constants are
+divvied up though...  All packed into a third object file?  Shoved into a
+package-wide definition file?
+
+Package definitions are machine-readable files in the package directory that
+contain:
+Name
+Docstring
+Internal classes
+Internal methods
+Internal globals
+Internal constants
+Exported classes
+Exported methods
+Exported globals
+Exported constants
+Classes, methods, globals and constants that must be imported --dependancies
+
+
+NOTE: It might also be a good idea for the package definition to know WHERE
+various globals and constants are kept.
+
+
+
+HANGON!  Inline asm COULD be done!!
+
+
+
+
+
+Why Dancer Is Nice:
+bignums
+simple, unified language
+keywords and variable-length args (all right, C++ has both, but mine are nicer)
+flexible --late binding, functional-ish code blocks
+Moderately fast
+
+Simpler than C++, faster and more flexible than Java.  Yeah, that fits what
+I'm aiming for...
+
+
+
+Syntax:
+directive :== 
+"import" identifier [list] "." | 
+"use" identifier [list] "." |
+"export" identifier [list] "." |
+"trace" identifier "." |
+"global" identifier ["=" expression (???)] "." |
+"constant" identifier ["=" expression (???)] "." |
+"mixin" identifier "." |
+"class" identifier "(" identifier [identifier*] ")" [vardecl ["," vardecl+]]
+   "." |
+"method" identifier identifier arglist [vardecl ["," vardecl+]] [","]
+   [expression ["," expression+]] "."
+"method+" identifier identifier arglist [vardecl ["," vardecl+]] [","]
+   [expression ["," expression+]] "."
+
+expression :== 
+
+
+value :== identifier | number | expression
+
+comment :==
+"{{" anything "}}" |
+";" anything "\n"
+
+identifier = [a-zA-Z+-*/=][a-zA-Z0-9+-*/=]*
+number = [-][0-9]+ | [-][0-9]*.[0-9]+ | [-][0-9]+/[-][0-9]+ | "inf" | "NaN"

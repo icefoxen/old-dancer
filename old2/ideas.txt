@@ -1,0 +1,19 @@
+Maybe have sequences define numbered methods?  A la Arc:
+(a 5) == (aref a 5)
+5 a   == ref a 5
+
+Well...  Numbers are values, not symbols.  You can't really assign methods to
+them/use them as messages...  Can ye?  No reason why not, sorta, but...  It
+makes the compiler more complex.  Besides, we already have first/second/third
+(though it's hard to have those as a return value or variable...  Well,
+messages are automatically not-evaluated already, aren't they...?
+
+Hrm... well, there actually seems to be nothing against a number as an
+identifier in the syntax rules, so...  But then symbols must be quoted as
+literals, which makes things MUCH ickier!
+
+Additional syntax for sequences here?  Or anything, really.  "foo=>bar"
+compiles to "ref foo bar"?  But it interferes with the freedom of certain
+methods; >= and <= and <=> and all those!  Maybe foo:bar?  Easy to confuse
+with package syntax there, but it IS valid...  or :foo bar or some such...
+Hrm.

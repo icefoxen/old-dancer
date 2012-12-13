@@ -1,0 +1,6 @@
+#!/bin/sh
+INCS="-I./include/"
+LIBS=""
+CC=gcc
+
+$CC -c -g $INCS $LIBS *.c  2>&1

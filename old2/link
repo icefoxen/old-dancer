@@ -1,0 +1,5 @@
+#!/bin/sh
+LINK=gcc
+FLAGS=""
+
+$LINK $FLAGS *.o
